@@ -2,6 +2,7 @@
  * Main service: Express web server, physician monitoring, and daily cron jobs.
  */
 
+require('dotenv').config();
 const express = require('express');
 const cron = require('node-cron');
 const { createPool, startMonitor, runCycle, sendAlert } = require('./monitor.js');
