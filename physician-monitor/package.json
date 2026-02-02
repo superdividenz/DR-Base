@@ -1,0 +1,17 @@
+{
+  "name": "physician-monitor",
+  "version": "1.0.0",
+  "description": "Monitoring service for physician availability and status",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "setup-db": "node src/setup-database.js",
+    "dev": "node --watch src/index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "pg": "^8.11.3"
+  }
+}
