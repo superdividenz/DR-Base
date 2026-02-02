@@ -1,0 +1,65 @@
+/**
+ * Database initialization for physician-monitor.
+ * Creates tables and inserts Dr. Singer.
+ * Run with: node src/setup-database.js
+ */
+
+require('dotenv').config();
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.DATABASE_URL?.includes('localhost') ? false : { rejectUnauthorized: false },
+});
+
+async function setup() {
+  const client = await pool.connect();
+  try {
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS physicians (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        name TEXT NOT NULL,
+        specialty TEXT,
+        status TEXT NOT NULL DEFAULT 'unknown',
+        last_seen_at TIMESTAMPTZ DEFAULT NOW(),
+        created_at TIMESTAMPTZ DEFAULT NOW(),
+        updated_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE TABLE IF NOT EXISTS monitor_events (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        physician_id UUID REFERENCES physicians(id),
+        event_type TEXT NOT NULL,
+        payload JSONB,
+        created_at TIMESTAMPTZ DEFAULT NOW()
+      );
+    `);
+    await client.query(`
+      CREATE INDEX IF NOT EXISTS idx_monitor_events_physician_id ON monitor_events(physician_id);
+      CREATE INDEX IF NOT EXISTS idx_monitor_events_created_at ON monitor_events(created_at);
+    `);
+    console.log('Database tables created successfully.');
+
+    const { rows: existing } = await client.query(
+      "SELECT id FROM physicians WHERE name = 'Dr. Singer' LIMIT 1"
+    );
+    if (existing.length === 0) {
+      await client.query(
+        `INSERT INTO physicians (name, specialty, status) VALUES ($1, $2, $3)`,
+        ['Dr. Singer', 'General Practice', 'unknown']
+      );
+      console.log('Inserted Dr. Singer.');
+    } else {
+      console.log('Dr. Singer already exists.');
+    }
+  } finally {
+    client.release();
+    await pool.end();
+  }
+}
+
+setup().catch((err) => {
+  console.error('Setup failed:', err);
+  process.exit(1);
+});
