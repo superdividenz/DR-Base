@@ -1,5 +1,6 @@
 /**
  * Database initialization for physician-monitor.
+ * Creates tables and inserts Dr. Singer.
  * Run with: node src/setup-database.js
  */
 
@@ -38,6 +39,19 @@ async function setup() {
       CREATE INDEX IF NOT EXISTS idx_monitor_events_created_at ON monitor_events(created_at);
     `);
     console.log('Database tables created successfully.');
+
+    const { rows: existing } = await client.query(
+      "SELECT id FROM physicians WHERE name = 'Dr. Singer' LIMIT 1"
+    );
+    if (existing.length === 0) {
+      await client.query(
+        `INSERT INTO physicians (name, specialty, status) VALUES ($1, $2, $3)`,
+        ['Dr. Singer', 'General Practice', 'unknown']
+      );
+      console.log('Inserted Dr. Singer.');
+    } else {
+      console.log('Dr. Singer already exists.');
+    }
   } finally {
     client.release();
     await pool.end();

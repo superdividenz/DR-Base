@@ -1,91 +1,107 @@
 # Physician Monitor
 
-Monitoring service for physician availability and status. Runs a periodic check against the database and records status-change events.
+Monitoring service for physician availability and status. Runs periodic checks, sends Telegram alerts on status changes, and runs daily cron jobs for summaries.
 
 ## Prerequisites
 
 - Node.js 18+
 - PostgreSQL
+- Telegram bot (optional, for alerts)
 
 ## Setup
 
-1. **Clone and install**
+### 1. Clone and install
 
-   ```bash
-   cd physician-monitor
-   npm install
-   ```
+```bash
+cd physician-monitor
+npm install
+```
 
-2. **Environment**
+### 2. Environment
 
-   Copy the example env file and set your values:
+Copy the example env file and set your values:
 
-   ```bash
-   cp .env.example .env
-   ```
+```bash
+cp .env.example .env
+```
 
-   Edit `.env` and set at least:
+Edit `.env` and configure:
 
-   - `DATABASE_URL` – PostgreSQL connection string (e.g. `postgresql://user:password@localhost:5432/physician_monitor`)
-   - `PORT` (optional, default `3000`)
+| Variable | Description | Required |
+|----------|-------------|----------|
+| `DATABASE_URL` | PostgreSQL connection string | Yes |
+| `PORT` | HTTP server port (default `3000`) | No |
+| `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) | For alerts |
+| `TELEGRAM_CHAT_ID` | Chat/group ID to receive alerts | For alerts |
+| `MONITOR_INTERVAL_MS` | Interval between monitor cycles (default `60000`) | No |
+| `HEALTH_CHECK_TIMEOUT_MS` | Treat physician as offline after (ms) (default `5000`) | No |
+| `CRON_DAILY` | Daily summary cron (default `0 8 * * *` = 08:00) | No |
+| `CRON_CYCLE` | Scheduled full cycle cron (default `0 */6 * * *` = every 6h) | No |
 
-3. **Database**
+**Telegram setup (for alerts):**
 
-   Create the schema and tables:
+1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.
+2. Start a chat with your bot or add it to a group.
+3. Get your chat ID (e.g. use [@userinfobot](https://t.me/userinfobot) or send a message and call `getUpdates` on the bot API).
 
-   ```bash
-   npm run setup-db
-   ```
+### 3. Database
 
-4. **Run**
+Create tables and seed Dr. Singer:
 
-   ```bash
-   npm start
-   ```
+```bash
+npm run setup-db
+```
 
-   For local development with auto-restart:
+This creates `physicians` and `monitor_events`, and inserts **Dr. Singer** if not already present.
 
-   ```bash
-   npm run dev
-   ```
+### 4. Run
+
+```bash
+npm start
+```
+
+For local development with auto-restart:
+
+```bash
+npm run dev
+```
 
 ## Endpoints
 
 - `GET /` – Plain-text service name
 - `GET /health` – Health check (used by Railway)
 
-## Environment variables
+## Features
 
-| Variable               | Description                          | Default   |
-|------------------------|--------------------------------------|-----------|
-| `DATABASE_URL`         | PostgreSQL connection string         | required  |
-| `PORT`                 | HTTP server port                     | `3000`    |
-| `MONITOR_INTERVAL_MS`  | Interval between monitor cycles (ms) | `60000`   |
-| `HEALTH_CHECK_TIMEOUT_MS` | Treat physician as offline after (ms) | `5000` |
+- **Monitoring:** Periodic checks of physician status; physicians go offline when `last_seen_at` is older than `HEALTH_CHECK_TIMEOUT_MS`.
+- **Alerts:** Status changes are sent to Telegram when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set.
+- **Daily cron:** At 08:00 (or `CRON_DAILY`) a summary of all physicians is sent to Telegram.
+- **Scheduled cycle:** Every 6 hours (or `CRON_CYCLE`) a full monitor cycle runs in addition to the interval-based loop.
 
 ## Railway deployment
 
 1. Create a new project and add a PostgreSQL service.
-2. Add this repo as a service; Railway will use `railway.json` for build and deploy.
-3. Set `DATABASE_URL` from the PostgreSQL service (or use Railway’s linked variables).
-4. Run the database setup once (e.g. via a one-off run or a separate job):
+2. Add this repo as a service; Railway uses `railway.json` for build and deploy.
+3. Set `DATABASE_URL` from the PostgreSQL service (or Railway linked variables).
+4. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` if you want alerts.
+5. Run the database setup once (one-off run or job):
 
    ```bash
    node src/setup-database.js
    ```
 
-5. Deploy; the service will start with `node src/index.js` and use `/health` for health checks.
+6. Deploy; the service starts with `node src/index.js` and uses `/health` for health checks.
 
 ## Project layout
 
 ```
 physician-monitor/
 ├── railway.json          # Railway deployment config
-├── package.json          # Node.js dependencies
+├── package.json          # Node.js dependencies (pg, express, telegram bot, etc.)
 ├── .env.example          # Environment variables template
 ├── README.md             # This file
 └── src/
-    ├── setup-database.js # Database initialization
-    ├── monitor.js        # Monitoring logic
-    └── index.js          # Main service with web server
+    ├── setup-database.js # Creates tables & inserts Dr. Singer
+    ├── monitor.js        # Monitoring logic with alerts
+    └── index.js          # Web server with daily cron jobs
 ```

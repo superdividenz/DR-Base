@@ -1,7 +1,7 @@
 {
   "name": "physician-monitor",
   "version": "1.0.0",
-  "description": "Monitoring service for physician availability and status",
+  "description": "Monitoring service for physician availability and status with Telegram alerts",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
@@ -12,6 +12,9 @@
     "node": ">=18"
   },
   "dependencies": {
+    "express": "^4.21.0",
+    "node-cron": "^3.0.3",
+    "node-telegram-bot-api": "^0.66.0",
     "pg": "^8.11.3"
   }
 }

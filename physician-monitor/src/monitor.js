@@ -1,8 +1,9 @@
 /**
- * Monitoring logic for physician status and availability.
+ * Monitoring logic for physician status and availability, with Telegram alerts.
  */
 
 const { Pool } = require('pg');
+const TelegramBot = require('node-telegram-bot-api');
 
 function createPool() {
   return new Pool({
@@ -11,8 +12,32 @@ function createPool() {
   });
 }
 
+function getTelegramBot() {
+  const token = process.env.TELEGRAM_BOT_TOKEN;
+  if (!token) return null;
+  return new TelegramBot(token, { polling: false });
+}
+
 /**
- * Run a single monitoring cycle: check physicians and record events.
+ * Send an alert to the configured Telegram chat.
+ * @param {string} message
+ */
+async function sendAlert(message) {
+  const bot = getTelegramBot();
+  const chatId = process.env.TELEGRAM_CHAT_ID;
+  if (!bot || !chatId) {
+    console.log('[Alert (no Telegram)]', message);
+    return;
+  }
+  try {
+    await bot.sendMessage(chatId, `[Physician Monitor] ${message}`);
+  } catch (err) {
+    console.error('Telegram alert failed:', err.message);
+  }
+}
+
+/**
+ * Run a single monitoring cycle: check physicians, record events, send alerts.
  * @param {import('pg').Pool} pool
  */
 async function runCycle(pool) {
@@ -22,11 +47,11 @@ async function runCycle(pool) {
       'SELECT id, name, status, last_seen_at FROM physicians'
     );
     const now = new Date();
+    const timeoutMs = Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000;
     for (const p of physicians) {
       const stale =
         !p.last_seen_at ||
-        (now - new Date(p.last_seen_at)) >
-          (Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000);
+        (now - new Date(p.last_seen_at)) > timeoutMs;
       const newStatus = stale ? 'offline' : p.status;
       if (newStatus !== p.status) {
         await client.query(
@@ -37,6 +62,7 @@ async function runCycle(pool) {
           'INSERT INTO monitor_events (physician_id, event_type, payload) VALUES ($1, $2, $3)',
           [p.id, 'status_change', JSON.stringify({ from: p.status, to: newStatus })]
         );
+        await sendAlert(`${p.name}: ${p.status} → ${newStatus}`);
       }
     }
   } finally {
@@ -57,4 +83,4 @@ function startMonitor(pool) {
   }, intervalMs);
 }
 
-module.exports = { createPool, runCycle, startMonitor };
+module.exports = { createPool, runCycle, startMonitor, sendAlert, getTelegramBot };
