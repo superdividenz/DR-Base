@@ -18,6 +18,7 @@ async function setup() {
     await client.query(`
       CREATE TABLE IF NOT EXISTS physicians (
         id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        external_id TEXT UNIQUE,
         name TEXT NOT NULL,
         specialty TEXT,
         status TEXT NOT NULL DEFAULT 'unknown',
@@ -25,6 +26,9 @@ async function setup() {
         created_at TIMESTAMPTZ DEFAULT NOW(),
         updated_at TIMESTAMPTZ DEFAULT NOW()
       );
+    `);
+    await client.query(`
+      ALTER TABLE physicians ADD COLUMN IF NOT EXISTS external_id TEXT UNIQUE;
     `);
     await client.query(`
       CREATE TABLE IF NOT EXISTS monitor_events (
@@ -46,12 +50,15 @@ async function setup() {
     );
     if (existing.length === 0) {
       await client.query(
-        `INSERT INTO physicians (name, specialty, status) VALUES ($1, $2, $3)`,
-        ['Dr. Singer', 'General Practice', 'unknown']
+        `INSERT INTO physicians (external_id, name, specialty, status) VALUES ($1, $2, $3, $4)`,
+        ['43005', 'Dr. Singer', 'General Practice', 'unknown']
       );
-      console.log('Inserted Dr. Singer.');
+      console.log('Inserted Dr. Singer (external_id 43005).');
     } else {
-      console.log('Dr. Singer already exists.');
+      await client.query(
+        "UPDATE physicians SET external_id = '43005' WHERE name = 'Dr. Singer' AND (external_id IS NULL OR external_id != '43005')"
+      );
+      console.log('Dr. Singer already exists (external_id ensured).');
     }
   } finally {
     client.release();

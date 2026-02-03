@@ -22,6 +22,28 @@ app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'physician-monitor' });
 });
 
+// Manual check: POST /check/:id — id is UUID or external_id (e.g. 43005). Updates last_seen_at.
+app.post('/check/:id', async (req, res) => {
+  const { id } = req.params;
+  if (!id) return res.status(400).json({ ok: false, error: 'missing id' });
+  try {
+    const client = await pool.connect();
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id);
+    const { rows } = await client.query(
+      isUuid
+        ? 'UPDATE physicians SET last_seen_at = NOW(), updated_at = NOW(), status = \'online\' WHERE id = $1 RETURNING id, external_id, name, status, last_seen_at'
+        : 'UPDATE physicians SET last_seen_at = NOW(), updated_at = NOW(), status = \'online\' WHERE external_id = $1 RETURNING id, external_id, name, status, last_seen_at',
+      [id]
+    );
+    client.release();
+    if (rows.length === 0) return res.status(404).json({ ok: false, error: 'physician not found' });
+    res.json({ ok: true, physician: rows[0] });
+  } catch (err) {
+    console.error('Check error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
+});
+
 // Daily cron: run at 08:00 every day (configurable via CRON_DAILY)
 const dailyCronExpr = process.env.CRON_DAILY || '0 8 * * *';
 cron.schedule(dailyCronExpr, async () => {
