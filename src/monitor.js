@@ -47,7 +47,7 @@ async function runCycle(pool) {
       'SELECT id, name, status, last_seen_at FROM physicians'
     );
     const now = new Date();
-    const timeoutMs = Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000;
+    const timeoutMs = Number(process.env.ALERT_THRESHOLD) || Number(process.env.HEALTH_CHECK_TIMEOUT_MS) || 5000;
     for (const p of physicians) {
       const stale =
         !p.last_seen_at ||

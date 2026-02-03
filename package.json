@@ -7,6 +7,7 @@
     "start": "node src/index.js",
     "setup": "node src/setup-database.js",
     "setup-db": "node src/setup-database.js",
+    "create-tables": "node src/setup-database.js",
     "dev": "node --watch src/index.js"
   },
   "engines": {

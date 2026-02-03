@@ -6,11 +6,27 @@ require('dotenv').config();
 const express = require('express');
 const cron = require('node-cron');
 const { createPool, startMonitor, runCycle, sendAlert } = require('./monitor.js');
+const { runSetup } = require('./setup-database.js');
 
 const PORT = Number(process.env.PORT) || 3000;
 const app = express();
 const pool = createPool();
-const intervalId = startMonitor(pool);
+
+async function ensureSetup() {
+  try {
+    const client = await pool.connect();
+    await client.query('SELECT 1 FROM physicians LIMIT 1');
+    client.release();
+  } catch (err) {
+    if (err.code === '42P01') {
+      console.log('Tables not found; running database setup...');
+      await runSetup(pool);
+      console.log('Database setup complete.');
+    } else {
+      console.error('Startup DB check failed:', err.message);
+    }
+  }
+}
 
 app.use(express.json());
 
@@ -20,6 +36,21 @@ app.get('/', (req, res) => {
 
 app.get('/health', (req, res) => {
   res.json({ ok: true, service: 'physician-monitor' });
+});
+
+// Run DB setup from inside Railway (avoids postgres.railway.internal from local). Requires SETUP_SECRET.
+app.post('/setup', async (req, res) => {
+  const secret = process.env.SETUP_SECRET;
+  if (!secret || req.headers.authorization !== `Bearer ${secret}`) {
+    return res.status(401).json({ ok: false, error: 'missing or invalid Authorization' });
+  }
+  try {
+    await runSetup(pool);
+    res.json({ ok: true, message: 'Database setup complete.' });
+  } catch (err) {
+    console.error('Setup error:', err);
+    res.status(500).json({ ok: false, error: err.message });
+  }
 });
 
 // Manual check: POST /check/:id — id is UUID or external_id (e.g. 43005). Updates last_seen_at.
@@ -69,12 +100,20 @@ cron.schedule(cycleCronExpr, () => {
   runCycle(pool).catch((err) => console.error('Scheduled cycle error:', err));
 });
 
+let intervalId;
 const server = app.listen(PORT, () => {
   console.log(`Physician monitor listening on port ${PORT}`);
 });
 
+// Run DB setup on first start, then start the monitor
+ensureSetup()
+  .then(() => {
+    intervalId = startMonitor(pool);
+  })
+  .catch((err) => console.error('ensureSetup error:', err));
+
 function shutdown() {
-  clearInterval(intervalId);
+  if (intervalId) clearInterval(intervalId);
   server.close();
   pool.end();
   process.exit(0);

@@ -84,13 +84,20 @@ npm run dev
 1. Connect this repo to Railway; Railway uses the **root** of the repo (package.json, railway.json, src/ at root).
 2. Add a PostgreSQL service and set `DATABASE_URL` from it (or use Railway linked variables).
 3. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` if you want alerts.
-4. Run the database setup once (one-off run):
+4. Link the CLI to your project (one-time, from repo root):
 
    ```bash
-   railway run npm run setup
+   railway link
    ```
+   Select your project and the **splendid-kindness** service (or the service that has `DATABASE_URL`).
 
-5. Deploy; the service starts with `node src/index.js` and uses `/health` for health checks.
+5. Run the database setup once. **Option A (recommended on Railway):** In Railway Variables, set `SETUP_SECRET` to a random string (e.g. `openssl rand -hex 16`). Deploy, then run:
+   ```bash
+   curl -X POST -H "Authorization: Bearer YOUR_SETUP_SECRET" https://YOUR_APP.up.railway.app/setup
+   ```
+   This runs setup from inside Railway’s network (so the DB is reachable). **Option B (local):** Use the database **public** URL (from Railway PostgreSQL → Connect) as `DATABASE_URL` locally and run `npm run setup` — the internal host `postgres.railway.internal` only works from inside Railway.
+
+7. Deploy; the service starts with `node src/index.js` and uses `/health` for health checks.
 
 ## Project layout
 
