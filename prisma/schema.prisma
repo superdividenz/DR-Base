@@ -1,0 +1,51 @@
+// Doctor tracking MVP: doctors, where they work, who pays, how much
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Doctor {
+  id        String   @id @default(cuid())
+  name      String
+  specialty String
+  createdAt DateTime @default(now())
+
+  employers DoctorEmployer[]
+  payments  DoctorPayment[]
+}
+
+model Organization {
+  id   String @id @default(cuid())
+  name String
+
+  employments DoctorEmployer[]
+  payments    DoctorPayment[]  // as payer
+}
+
+// Where a doctor works
+model DoctorEmployer {
+  doctorId       String
+  organizationId String
+  doctor         Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@id([doctorId, organizationId])
+}
+
+// Who pays a doctor and how much
+model DoctorPayment {
+  id         String   @id @default(cuid())
+  doctorId   String
+  payerId    String   // organization that pays
+  amountCents Int     // avoid float; store cents/dollars * 100 or just whole dollars
+  period     String   // "annual" | "monthly"
+  year       Int?     // e.g. 2024 for annual
+  createdAt  DateTime @default(now())
+
+  doctor   Doctor       @relation(fields: [doctorId], references: [id], onDelete: Cascade)
+  payer    Organization @relation(fields: [payerId], references: [id], onDelete: Cascade)
+}

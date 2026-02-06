@@ -1,114 +1,86 @@
-# Physician Monitor
+# Doctor tracking
 
-Monitoring service for physician availability and status. Runs periodic checks, sends Telegram alerts on status changes, and runs daily cron jobs for summaries.
+Track physicians by **specialty**, **where they work**, **who pays them**, and **how much** they’re paid. Next.js frontend + PostgreSQL, deployable on Railway.
 
-## Prerequisites
+## Stack
 
-- Node.js 18+
-- PostgreSQL
-- Telegram bot (optional, for alerts)
+- **Next.js 16** (App Router), React 19, TypeScript, Tailwind
+- **PostgreSQL** via Prisma (doctors, organizations, employment, payments)
+- **Railway** for hosting + database
 
-## Setup
+## Local setup
 
-### 1. Clone and install
+1. **Node.js ≥ 20** (required for Next.js 16).
 
-```bash
-git clone <repo-url>
-cd DR-Base
-npm install
-```
+2. **PostgreSQL** running locally (or a cloud URL in `.env`).
 
-### 2. Environment
-
-Copy the example env file and set your values:
-
-```bash
-cp .env.example .env
-```
-
-Edit `.env` and configure:
-
-| Variable | Description | Required |
-|----------|-------------|----------|
-| `DATABASE_URL` | PostgreSQL connection string | Yes |
-| `PORT` | HTTP server port (default `3000`) | No |
-| `TELEGRAM_BOT_TOKEN` | Bot token from [@BotFather](https://t.me/BotFather) | For alerts |
-| `TELEGRAM_CHAT_ID` | Chat/group ID to receive alerts | For alerts |
-| `MONITOR_INTERVAL_MS` | Interval between monitor cycles (default `60000`) | No |
-| `HEALTH_CHECK_TIMEOUT_MS` | Treat physician as offline after (ms) (default `5000`) | No |
-| `CRON_DAILY` | Daily summary cron (default `0 8 * * *` = 08:00) | No |
-| `CRON_CYCLE` | Scheduled full cycle cron (default `0 */6 * * *` = every 6h) | No |
-
-**Telegram setup (for alerts):**
-
-1. Create a bot with [@BotFather](https://t.me/BotFather) and copy the token.
-2. Start a chat with your bot or add it to a group.
-3. Get your chat ID (e.g. use [@userinfobot](https://t.me/userinfobot) or send a message and call `getUpdates` on the bot API).
-
-### 3. Database
-
-Create tables and seed Dr. Singer:
-
-```bash
-npm run setup
-```
-
-(or `npm run setup-db`)
-
-### 4. Run
-
-```bash
-npm start
-```
-
-For local development with auto-restart:
-
-```bash
-npm run dev
-```
-
-## Endpoints
-
-- `GET /` – Plain-text service name
-- `GET /health` – Health check (used by Railway)
-
-## Features
-
-- **Monitoring:** Periodic checks of physician status; physicians go offline when `last_seen_at` is older than `HEALTH_CHECK_TIMEOUT_MS`.
-- **Alerts:** Status changes are sent to Telegram when `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` are set.
-- **Daily cron:** At 08:00 (or `CRON_DAILY`) a summary of all physicians is sent to Telegram.
-- **Scheduled cycle:** Every 6 hours (or `CRON_CYCLE`) a full monitor cycle runs in addition to the interval-based loop.
-
-## Railway deployment
-
-1. Connect this repo to Railway; Railway uses the **root** of the repo (package.json, railway.json, src/ at root).
-2. Add a PostgreSQL service and set `DATABASE_URL` from it (or use Railway linked variables).
-3. Set `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID` if you want alerts.
-4. Link the CLI to your project (one-time, from repo root):
+3. **Env**: copy `.env.example` to `.env` and set:
 
    ```bash
-   railway link
+   DATABASE_URL=postgresql://user:password@localhost:5432/dr_tracking
    ```
-   Select your project and the **splendid-kindness** service (or the service that has `DATABASE_URL`).
 
-5. Run the database setup once. **Option A (recommended on Railway):** In Railway Variables, set `SETUP_SECRET` to a random string (e.g. `openssl rand -hex 16`). Deploy, then run:
+4. **DB**:
+
    ```bash
-   curl -X POST -H "Authorization: Bearer YOUR_SETUP_SECRET" https://YOUR_APP.up.railway.app/setup
+   npm install
+   npx prisma migrate deploy    # create tables
+   npm run db:seed              # seed sample doctors + payments
    ```
-   This runs setup from inside Railway’s network (so the DB is reachable). **Option B (local):** Use the database **public** URL (from Railway PostgreSQL → Connect) as `DATABASE_URL` locally and run `npm run setup` — the internal host `postgres.railway.internal` only works from inside Railway.
 
-7. Deploy; the service starts with `node src/index.js` and uses `/health` for health checks.
+5. **Run**:
 
-## Project layout
+   ```bash
+   npm run dev
+   ```
 
-```
-DR-Base/
-├── railway.json          # Railway deployment config
-├── package.json          # Node.js dependencies (pg, express, telegram bot, etc.)
-├── .env.example          # Environment variables template
-├── README.md             # This file
-└── src/
-    ├── setup-database.js # Creates tables & inserts Dr. Singer
-    ├── monitor.js        # Monitoring logic with alerts
-    └── index.js          # Web server with daily cron jobs
-```
+   Open [http://localhost:3000](http://localhost:3000).
+
+## Scripts
+
+| Command           | Description                    |
+|-------------------|--------------------------------|
+| `npm run dev`     | Start dev server               |
+| `npm run build`   | Prisma generate + Next build   |
+| `npm start`       | Start production server        |
+| `npm run db:seed` | Seed DB (sample data)          |
+| `npm run db:migrate` | Apply migrations (`prisma migrate deploy`) |
+| `npm run db:push` | Push schema without migrations |
+| `npm run db:studio` | Open Prisma Studio            |
+
+## Deploy on Railway
+
+1. **New project**: [railway.com/new](https://railway.com/new) → **Deploy from GitHub repo** → select this repo.
+
+2. **PostgreSQL**: In the project, **Add service** → **Database** → **PostgreSQL**. Railway creates a DB and sets `DATABASE_URL` in the project.
+
+3. **Connect DB to app**:
+   - Open your **app service** (the repo).
+   - **Variables** → **Add variable** → **Add a reference** → choose `DATABASE_URL` from the PostgreSQL service.  
+   (Or copy the PostgreSQL `DATABASE_URL` value into the app’s variables.)
+
+4. **Run migrations once** (after first deploy with `DATABASE_URL` set):
+   - In the app service: **Settings** → run a one-off command, or use CLI:
+   - `railway run npx prisma migrate deploy`
+   - Then (optional) seed: `railway run npm run db:seed`
+
+5. **Domain**: **Settings** → **Networking** → **Generate domain**.
+
+Build uses `railway.toml`: `npm ci && npm run build`; start is `npm start`. Node is taken from `package.json` `engines` (≥ 20).
+
+## Data model (MVP)
+
+- **Doctor** – id, name, specialty
+- **Organization** – id, name (employers / payers)
+- **DoctorEmployer** – which doctor works at which organization
+- **DoctorPayment** – doctor, payer (organization), amount (cents), period (e.g. annual), year
+
+Amounts are stored in **cents** to avoid float issues (e.g. `280000` = $2,800).
+
+## API (for later use)
+
+- `GET /api/doctors` – list (optional `?specialty=`)
+- `GET /api/doctors/[id]` – one doctor with employers and payments
+- `GET /api/specialties` – list of specialties
+
+Pages use the database directly; the API is available for client or external use.
