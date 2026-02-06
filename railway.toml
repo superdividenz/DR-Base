@@ -1,10 +1,10 @@
-# Railway deployment config for DR details (Next.js)
+# Railway deployment config (Next.js + Railpack)
 # https://docs.railway.com/guides/build-configuration
+# Build/start are set in railpack.json so Railpack uses them.
 
 [build]
-builder = "nixpacks"
 buildCommand = "npm ci && npm run build"
-watchPatterns = ["src/**", "public/**", "package.json", "next.config.ts", "tsconfig.json"]
+watchPatterns = ["src/**", "public/**", "package.json", "next.config.ts", "tsconfig.json", "prisma/**"]
 
 [deploy]
 startCommand = "npm start"
