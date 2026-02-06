@@ -3,7 +3,10 @@
   "provider": "node",
   "steps": {
     "build": {
-      "inputs": [{"step": "install"}],
+      "inputs": [
+        {"step": "install"},
+        {"local": true, "include": ["src", "public", "next.config.ts", "tsconfig.json", "postcss.config.mjs", "next-env.d.ts", "eslint.config.mjs"]}
+      ],
       "commands": ["..."]
     }
   },
